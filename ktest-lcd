@@ -1,0 +1,71 @@
+#!/bin/bash
+
+name="$(basename $0)"
+version="0.1"
+
+do_check_distro(){
+    if [ "$(grep -i slax /etc/issue)" != "" ]; then
+        distro="Slax"
+    fi
+    [[ ${distro} ]] || distro="$(lsb_release --short --id 2>/dev/null)"
+    if [ "$(echo ${distro} | grep -i -e ubuntu -e debian -e mint -e slax)" = "" ]; then
+        echo "Only Ubuntu, Debian, Mint or Slax is supported... exiting..."
+        exit 1
+    else
+        (( EUID )) && SUDO="sudo"
+    fi
+}
+
+do_test_lcd(){
+    backlight_path="/sys/class/backlight/acpi_video0"
+
+    if [ -d ${backlight_path} ]; then
+        backlight_old="$(cat ${backlight_path}/brightness)"
+        echo "$(cat ${backlight_path}/max_brightness)" >  ${backlight_path}/brightness
+    fi
+
+    feh --fullscreen --auto-zoom --hide-pointer --no-menus --preload --quiet --sort filename /usr/local/share/${name}/*.png
+
+    if [ -d ${backlight_path} ]; then
+        echo "${backlight_old}" > ${backlight_path}/brightness
+    fi
+}
+
+do_install(){
+    echo "Installing..."
+    do_check_distro
+    for package in feh giblib1 libimlib2; do
+        dpkg -l ${package} &>/dev/null || install_packages="${install_packages} ${package}"
+    done
+    [[ ${install_packages} ]] && (echo "Installing deps package(s)..."; ${SUDO} apt update -qq && ${SUDO} apt install ${install_packages})
+    ${SUDO} mkdir -p "/usr/local/share/${name}"
+    ${SUDO} cp -a *.png "/usr/local/share/${name}"
+    ${SUDO} cp -a "${name}" /usr/local/bin
+    echo "Done..."
+}
+
+do_uninstall(){
+    echo "Uninstalling..."
+    ${SUDO} rm -R "/usr/local/share/${name}"
+    ${SUDO} rm "/usr/local/bin/${name}"
+    echo "Done..."
+}
+
+do_help(){
+    echo -e "usage: ${name} [OPTION]\n\
+-t, --test\t run test lcd (color cycle using space, exit using escape)\n\
+-i, --install\t install to /usr/local/{bin,share}\n\
+-u, --uninstall\t uninstall from /usr/local"
+}
+
+do_version(){
+    echo "${name} ${version}"
+}
+
+case ${1} in
+    '-t'|'--test') do_test_lcd;;
+    '-i'|'--install') do_install;;
+    '-u'|'--uninstall') do_uninstall;;
+    '-v'|'--version') do_version;;
+    *) echo "unknown option"; do_help;;
+esac
