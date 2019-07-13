@@ -1,18 +1,26 @@
 #!/bin/bash
 
-name="$(basename $0)"
-version="0.1"
+(( EUID )) && SUDO="sudo"
 
-do_check_distro(){
+name="$(basename $0)"
+version="0.1.1"
+
+deps_packages="feh giblib1 libimlib2"
+
+do_check_deps_packages(){
     if [ "$(grep -i slax /etc/issue)" != "" ]; then
         distro="Slax"
     fi
     [[ ${distro} ]] || distro="$(lsb_release --short --id 2>/dev/null)"
     if [ "$(echo ${distro} | grep -i -e ubuntu -e debian -e mint -e slax)" = "" ]; then
-        echo "Only Ubuntu, Debian, Mint or Slax is supported... exiting..."
-        exit 1
+        echo "Right now only Ubuntu, Debian, Mint or Slax is supported for automatic check/install dependency packages..."
+        echo "On your distro must manually check/install packages: ${deps_packages}"
+        read -n1 -p "Press any key..."
     else
-        (( EUID )) && SUDO="sudo"
+        for package in ${deps_packages}; do
+            dpkg -l ${package} &>/dev/null || install_packages="${install_packages} ${package}"
+        done
+        [[ ${install_packages} ]] && (echo "Installing deps package(s): ${install_packages}"; ${SUDO} apt update -qq && ${SUDO} apt install ${install_packages})
     fi
 }
 
@@ -33,11 +41,7 @@ do_test_lcd(){
 
 do_install(){
     echo "Installing..."
-    do_check_distro
-    for package in feh giblib1 libimlib2; do
-        dpkg -l ${package} &>/dev/null || install_packages="${install_packages} ${package}"
-    done
-    [[ ${install_packages} ]] && (echo "Installing deps package(s)..."; ${SUDO} apt update -qq && ${SUDO} apt install ${install_packages})
+    do_check_deps_packages
     ${SUDO} mkdir -p "/usr/local/share/${name}"
     ${SUDO} cp -a *.png "/usr/local/share/${name}"
     ${SUDO} cp -a "${name}" /usr/local/bin
